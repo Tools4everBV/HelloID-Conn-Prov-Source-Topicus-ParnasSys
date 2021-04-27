@@ -24,13 +24,5 @@ an array of brin numbers representing the schools/organizations from wich to col
 - It collects information about both "Leerlingen" and "medewerkers".
 - The "PersonType" field is added to denote the type.
 
-
-
-
-
-
- 
-
-
-
-
+# HelloID Docs
+The official HelloID documentation can be found at: https://docs.helloid.com/
