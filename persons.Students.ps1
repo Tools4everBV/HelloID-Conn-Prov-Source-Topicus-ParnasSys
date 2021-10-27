@@ -1,274 +1,269 @@
-# Connection definition
-$ConnectorSettings = @{
-    webServiceUri = "";
-    supplierName = "";
-    supplierKey = ""
-    proxy = "";
-    # Data collection options
-    brinIdentifiers = @('');
-}
+$config = $configuration | ConvertFrom-Json
 
-function Get-ParnasSysLeerlingen{
+#region functions
+function Get-ParnasSysLeerlingen {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory)]
         [string]
         $Brin,
 
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory)]
         [string]
         $WebServiceUri,
 
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory)]
         [string]
         $SupplierName,
 
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory)]
         [string]
         $SupplierKey,
 
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory)]
         [string]
         $SchoolYear,
 
-        [Parameter(Mandatory=$false)]
-
+        [Parameter()]
         [string]
-        $proxy = ""
+        $proxy
     )
-    Write-Verbose -Verbose "ParnasSys import leerlingen getting data of shoolyear $SchoolYear";
-    try{
+    try {
         $headers = @{
-            'Content-Type' = "text/xml; charset=utf-8"
-            SOAPaction = "`"getLeerlingen`""
+            'Content-Type' = 'text/xml; charset=utf-8'
+            SOAPaction     = "`"getLeerlingen`""
         }
-        # $supplierNameEncoded =[System.Web.HttpUtility]::HtmlEncode($SupplierName)
-        $supplierNameEncoded = $SupplierName
-        $body = "<?xml version=`"1.0`" encoding=`"utf-8`"?><soap:Envelope xmlns:soap=`"http://schemas.xmlsoap.org/soap/envelope/`" xmlns:xsi=`"http://www.w3.org/2001/XMLSchema-instance`" xmlns:xsd=`"http://www.w3.org/2001/XMLSchema`"><soap:Body><getLeerlingen xmlns=`"http://www.topicus.nl/parnassys`"><leveranciernaam xmlns=`"`">$SupplierNameEncoded</leveranciernaam><leveranciersleutel xmlns=`"`">$SupplierKey</leveranciersleutel><brinnummer xmlns=`"`">$Brin</brinnummer><schooljaar xmlns=`"`">$SchoolYear</schooljaar></getLeerlingen></soap:Body></soap:Envelope>"     
+        # Fix the '&' char in the supplierName
+        $supplierNameEncoded = [System.Web.HttpUtility]::HtmlEncode($SupplierName)
 
-        if ($Proxy -ne "")
-        {
-            $splatWebRequestParameters = @{
-                Uri = $webServiceUri
-                Method = 'Post'
-                Headers = $headers
-                Proxy = $proxy
-                UseBasicParsing = $true
-                Body = $body;
-            }
+        $xml = [xml]('<?xml version="1.0" encoding="utf-8"?>
+            <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+                xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+                <soap:Body>
+                    <getLeerlingen xmlns="http://www.topicus.nl/parnassys">
+                        <leveranciernaam xmlns="">{0}</leveranciernaam>
+                        <leveranciersleutel xmlns="">{1}</leveranciersleutel>
+                        <brinnummer xmlns="">{2}</brinnummer>
+                        <schooljaar xmlns="">{3}</schooljaar>
+                    </getLeerlingen>
+                </soap:Body>
+            </soap:Envelope>
+        ' -f $supplierNameEncoded, $SupplierKey, $Brin, $SchoolYear)
+
+        $splatWebRequestParameters = @{
+            Uri             = $webServiceUri
+            Method          = 'Post'
+            Headers         = $headers
+            UseBasicParsing = $true
+            ContentType     = 'text/xml'
+            Body            = $xml.InnerXml
         }
-        else {
-            $splatWebRequestParameters = @{
-                Uri = $webServiceUri
-                Method = 'Post'
-                Headers = $headers
-                UseBasicParsing = $true
-                Body = $body;
-            }
+        if (-not  [string]::IsNullOrEmpty($Proxy)) {
+            $splatWebRequestParameters['Proxy'] = $Proxy
         }
 
-        Write-Verbose -Verbose "ParnasSys import leerlingen Invoking webRequest start "; 
-        $result = Invoke-WebRequest @splatWebRequestParameters  
-        Write-Verbose -Verbose "ParnasSys import leerlingen Invoking webRequest finished";
-        [xml] $parnasSysDataxml = $result.Content 
-        # envelope/body/getleerlingenresponse/return/leerlingen
-        $leerLingenResponseNode= $parnasSysDataxml.FirstChild.FirstChild.FirstChild
-        $returnNode = $leerLingenResponseNode.item("return")
-    }catch{
-        throw $_
+        $result = Invoke-WebRequest @splatWebRequestParameters
+
+        [xml] $parnasSysDataxml = $result.Content
+        $leerLingenResponseNode = $parnasSysDataxml.FirstChild.FirstChild.FirstChild
+        $returnNode = $leerLingenResponseNode.item('return')
+        Write-Output $returnNode
+    } catch {
+        Write-Verbose "Could not get Students for Brin: [$brin]" -Verbose
+        Write-Verbose "Error Details: [$($_.ErrorDetails.message)]" -Verbose
+        Write-Verbose "Exception Message: [$($_.Exception.Message)]" -Verbose
+        $PSCmdlet.ThrowTerminatingError($_)
     }
-    return $returnNode;
 }
 
-
-function Convert_Returnxml_to_Leerlingenlist {
+function ConvertTo-ReturnXmlToLeerlingenlist {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory)]
         [System.Xml.xmlelement]
         $ReturnNode
     )
 
-    $leerlingenObject =  [System.Collections.ArrayList]::new()
+    $leerlingenObject = [System.Collections.ArrayList]::new()
 
-    $adressenNode = $returnNode.item("adressen")
-    $groepenNode = $returnNode.Item("groepen")
-    $schooljarenNode = $returnNode.Item("schooljaren")
-    $leerlingenNode = $returnNode.item("leerlingen")
-    $inschrijvingtypesNode = $returnNode.item("inschrijvingtypes")
-    $nodePath = "leerling" 
+    $adressenNode = $returnNode.adressen
+    $groepenNode = $returnNode.groepen
+    $schooljarenNode = $returnNode.schooljaren
+    $leerlingenNode = $returnNode.leerlingen
+    $inschrijvingtypesNode = $returnNode.inschrijvingtypes
+    $nodePath = "leerling"
     $leerlingNodeList = $leerlingenNode.SelectNodes($nodePath)
 
-    foreach($leerlingNode in $leerlingNodeList){ 
+    foreach ($leerlingNode in $leerlingNodeList) {
         $contracts = [System.Collections.ArrayList]::new();
 
-        $nodePath = "adres[id=`'" + $leerlingNode.item("leerlingAdres").FirstChild.Value  + "`']"
-        $adresNode = $adressenNode.SelectSingleNode($nodePath) 
-        $adres = @{ id =  $leerlingNode.item("leerlingAdres").FirstChild.Value }
-        if ($null -ne $adresNode){  
-
-            if ( $adresNode.item("geheimadres").FirstChild.Value -eq "false"){
-
+        $nodePath = "adres[id=`'" + $leerlingNode.leerlingAdres + "`']"
+        $adresNode = $adressenNode.SelectSingleNode($nodePath)
+        $adres = @{ id = $leerlingNode.leerlingAdres }
+        if ($null -ne $adresNode) {
+            if ( $adresNode.geheimadres -eq "false") {
                 $telefoon = @{}
-                if ($adresNode.item("telefoon").item("geheim").FirstChild.Value -eq "false")
-                {
+                if ($adresNode.telefoon.geheim -eq "false") {
                     $telefoon = @{
-                        id = $adresNode.item("telefoon").item("id").FirstChild.Value;
-                        nummer = $adresNode.item("telefoon").item("nummer").FirstChild.Value;
+                        id     = $adresNode.telefoon.id
+                        nummer = $adresNode.telefoon.nummer
                     }
                 }
                 $adres = @{
-                    id =  $adresNode.item("id").FirstChild.Value;
-                    gemeente =  $adresNode.item("gemeente").FirstChild.Value;
-                    plaats = $adresNode.item("plaats").FirstChild.Value;
-                    straat = $adresNode.item("straat").FirstChild.Value;
-                    huisnummer = $adresNode.item("huisnummer").FirstChild.Value;
-                    postcode = $adresNode.item("postcode").FirstChild.Value;
-                    land = $adresNode.item("land").FirstChild.Value;
-                    telefoon = $telefoon;
+                    id         = $adresNode.id
+                    gemeente   = $adresNode.gemeente
+                    plaats     = $adresNode.plaats
+                    straat     = $adresNode.straat
+                    huisnummer = $adresNode.huisnummer
+                    postcode   = $adresNode.postcode
+                    land       = $adresNode.land
+                    telefoon   = $telefoon;
                 }
             }
         }
 
-        $nodePath = "groepsindelingen/groepsindeling" 
+        $nodePath = "groepsindelingen/groepsindeling"
         $groepsIndelingNodeList = $leerlingNode.SelectNodes($nodePath)
-
-        foreach($groepsIndelingNode in $groepsIndelingNodeList )
-        {
-            $nodePath = "groep[id=`'" + $groepsIndelingNode.Item("groep").FirstChild.Value + "`']"
-            $groepNode = $groepenNode.SelectSingleNode($nodePath) 
-            $groep = @{id = $groepsIndelingNode.Item("groep").FirstChild.Value}
-            if ($null -ne $groepNode)
-            {
-                $nodePath = "schooljaar[id=`'" + $groepNode.item("schooljaar").FirstChild.Value + "`']"
-                $groepschooljaarNode = $schooljarenNode.SelectSingleNode($nodePath) 
-                $groepschooljaar = @{id = $groepNode.item("schooljaar").FirstChild.Value }
-                if ($null -ne  $groepschooljaarNode)
-                {
+        foreach ($groepsIndelingNode in $groepsIndelingNodeList ) {
+            $nodePath = "groep[id=`'" + $groepsIndelingNode.groep + "`']"
+            $groepNode = $groepenNode.SelectSingleNode($nodePath)
+            $groep = @{id = $groepsIndelingNode.groep }
+            if ($null -ne $groepNode) {
+                $nodePath = "schooljaar[id=`'" + $groepNode.schooljaar + "`']"
+                $groepschooljaarNode = $schooljarenNode.SelectSingleNode($nodePath)
+                $groepschooljaar = @{id = $groepNode.schooljaar }
+                if ($null -ne $groepschooljaarNode) {
                     $groepschooljaar = @{
-                        id =  $groepschooljaarNode.item("id").FirstChild.Value
-                        naam =  $groepschooljaarNode.item("naam").FirstChild.Value
+                        id   = $groepschooljaarNode.id
+                        naam = $groepschooljaarNode.naam
                     }
                 }
                 $groep = @{
-                    id = $groepNode.item("id").FirstChild.Value;
-                    naam = $groepNode.item("naam").FirstChild.Value;
-                    lokaal = $groepNode.item("lokaal").FirstChild.Value;
+                    id         = $groepNode.id
+                    naam       = $groepNode.naam
+                    lokaal     = $groepNode.code
                     schooljaar = $groepschooljaar
                 }
             }
 
-            $nodePath = "schooljaar[id=`'" + $groepsIndelingNode.Item("schooljaar").FirstChild.Value + "`']"
-            $schooljaarNode = $schooljarenNode.SelectSingleNode($nodePath) 
-            $schooljaar = @{id =  $groepsIndelingNode.Item("schooljaar").FirstChild.Value}
-            if ($null -ne  $schooljaarNode)
-            {
+            $nodePath = "schooljaar[id=`'" + $groepsIndelingNode.schooljaar + "`']"
+            $schooljaarNode = $schooljarenNode.SelectSingleNode($nodePath)
+            $schooljaar = @{id = $groepsIndelingNode.schooljaar }
+            if ($null -ne $schooljaarNode) {
                 $schooljaar = @{
-                    id =  $schooljaarNode.item("id").FirstChild.Value
-                    naam =  $schooljaarNode.item("naam").FirstChild.Value
+                    id   = $schooljaarNode.id
+                    naam = $schooljaarNode.naam
                 }
             }
             $contract = @{
-                ContractType = "groep"
-                id = $groepsIndelingNode.Item("id").FirstChild.Value
-                vanafDatum =  $groepsIndelingNode.Item("vanafDatum").FirstChild.Value
-                totDatum = $groepsIndelingNode.Item("totDatum").FirstChild.Value
-                groep = $groep
-                schooljaar = $schooljaar
-                leerjaar = $groepsIndelingNode.Item("leerjaar").FirstChild.Value
-                bekostigd = $groepsIndelingNode.Item("bekostigd").FirstChild.Value
+                ContractType     = "groep"
+                id               = $groepsIndelingNode.id
+                vanafDatum       = $groepsIndelingNode.vanafDatum
+                totDatum         = $groepsIndelingNode.totDatum
+                groep            = $groep
+                schooljaar       = $schooljaar
+                leerjaar         = $groepsIndelingNode.leerjaar
+                bekostigd        = $groepsIndelingNode.bekostigd
                 inschrijvingType = @{} #dummy voor de mapping
-                dienstverband = @{} #dummy voor mapping
+                dienstverband    = @{} #dummy voor mapping
             }
             $contracts += $contract;
         }
-        $nodePath = "inschrijvingen/inschrijving" 
+        $nodePath = "inschrijvingen/inschrijving"
         $inschrijvingNodeList = $leerlingNode.SelectNodes($nodePath)
 
-        foreach($inschrijvingNode in $inschrijvingNodeList )
-        {
-            $nodePath = "inschrijvingtype[id=`'" +$inschrijvingNode.Item("inschrijvingType").FirstChild.Value + "`']" 
+        foreach ($inschrijvingNode in $inschrijvingNodeList ) {
+            $nodePath = "inschrijvingtype[id=`'" + $inschrijvingNode.inschrijvingType + "`']"
             $inschrijvingtypeNode = $inschrijvingtypesNode.SelectSingleNode($nodePath)
-            $inschrijvingType = @{ id = $inschrijvingNode.Item("inschrijvingType").FirstChild.Value }
-            if ($null -ne $inschrijvingtypeNode)
-            {
+            $inschrijvingType = @{ id = $inschrijvingNode.inschrijvingType }
+            if ($null -ne $inschrijvingtypeNode) {
                 $inschrijvingType = @{
-                    id = $inschrijvingtypeNode.Item("id").FirstChild.Value 
-                    omschrijving = $inschrijvingtypeNode.Item("omschrijving").FirstChild.Value 
-                    code =  $inschrijvingtypeNode.Item("code").FirstChild.Value                   
+                    id           = $inschrijvingtypeNode.id
+                    omschrijving = $inschrijvingtypeNode.omschrijving
+                    code         = $inschrijvingtypeNode.code
                 }
             }
             $contract = @{
-                ContractType = "inschrijving"
-                id = $inschrijvingNode.Item("id").FirstChild.Value
-                datumInschrijving =  $inschrijvingNode.Item("datumInschrijving").FirstChild.Value 
-                vanafDatum = $inschrijvingNode.Item("datumInschrijving").FirstChild.Value  #copy to ease the mapping
-                inschrijvingType = $inschrijvingType
-                groep = @{} #dummy for mapping
-                dienstverband = @{} #dummy for mapping
+                ContractType      = "inschrijving"
+                id                = $inschrijvingNode.id
+                datumInschrijving = $inschrijvingNode.datumInschrijving
+                vanafDatum        = $inschrijvingNode.datumInschrijving  #copy to ease the mapping
+                inschrijvingType  = $inschrijvingType
+                groep             = @{} #dummy for mapping
+                dienstverband     = @{} #dummy for mapping
             }
             $contracts += $contract
         }
 
         $leerlingObject = @{
-            PersonType = "leerling"
-            Brin = $Brin
-            ExternalId = [string] ($Brin + "_" + $leerlingNode.item("id").FirstChild.Value)
-            DisplayName = $leerlingNode.item("roepNaam").FirstChild.Value +  $leerlingNode.item("achternaam").FirstChild.Value;
+            PersonType             = "leerling"
+            Brin                   = $Brin
+            ExternalId             = [string]($Brin + "_" + $leerlingNode.id)
+            DisplayName            = $leerlingNode.roepNaam + $leerlingNode.achternaam
 
-            achternaam = $leerlingNode.item("achternaam").FirstChild.Value;
-            achternaamOfficieel = $leerlingNode.item("achternaamOfficieel").FirstChild.Value;
-            adres = $adres 
-            Contracts = $contracts   
-            datumAanmelding = $leerlingNode.item("datumAanmelding").FirstChild.Value;
-            geboortedatum = $leerlingNode.item("geboortedatum").FirstChild.Value;
-            geboortedatumOnzeker = $leerlingNode.item("geboortedatumOnzeker").FirstChild.Value;
-            geboorteplaats = $leerlingNode.item("geboorteplaats").FirstChild.Value;
-            geslacht = $leerlingNode.item("geslacht").FirstChild.Value;          
-            id = $leerlingNode.item("id").FirstChild.Value;
-            leerlingNummer = $leerlingNode.item("leerlingNummer").FirstChild.Value;        
-            roepnaam = $leerlingNode.item("roepNaam").FirstChild.Value;
-            tussenvoegsel = $leerlingNode.item("tussenvoegsel").FirstChild.Value;
-            tussenvoegselOfficieel = $leerlingNode.item("tussenvoegselOfficieel").FirstChild.Value;
-            voornamen = $leerlingNode.item("voornamen").FirstChild.Value;
-            telefoonWerk = @{} #dummy for mapping
+            achternaam             = $leerlingNode.achternaam
+            achternaamOfficieel    = $leerlingNode.achternaamOfficieel
+            adres                  = $adres
+            Contracts              = $contracts
+            datumAanmelding        = $leerlingNode.datumAanmelding
+            geboortedatum          = $leerlingNode.geboortedatum
+            geboortedatumOnzeker   = $leerlingNode.geboortedatumOnzeker
+            geboorteplaats         = $leerlingNode.geboorteplaats
+            geslacht               = $leerlingNode.geslacht
+            id                     = $leerlingNode.id
+            leerlingNummer         = $leerlingNode.leerlingNummer
+            roepnaam               = $leerlingNode.roepNaam
+            tussenvoegsel          = $leerlingNode.tussenvoegsel
+            tussenvoegselOfficieel = $leerlingNode.tussenvoegselOfficieel
+            voornamen              = $leerlingNode.voornamen
+            telefoonWerk           = @{} #dummy for mapping
 
         }
         $null = $leerlingenObject.add($leerlingObject);
     }
-    return $leerlingenObject
+    Write-Output $leerlingenObject
 }
-
+#endregion functions
 
 # start of main loop of script execution
-$personList = [System.Collections.ArrayList]::new()
-foreach ($Brin in $Connectorsettings.brinIdentifiers)
-{
-    Write-Verbose -Verbose "ParnasSys import leerlingen looping Brins ($Brin)";
+$personList = [System.Collections.Generic.List[object]]::new()
 
-    if ((Get-Date).Month -lt 8) {
-        $schoolYear = (Get-Date).AddYears(-1).ToString("yyyy") + " / " + (Get-Date).ToString("yyyy")
-    } else {
-        $schoolYear = (Get-Date).ToString("yyyy") + " / " + (Get-Date).AddYears(1).ToString("yyyy")
+$birnNumbers = [array]$config.brinIdentifiers.split(',') | ForEach-Object { $_.trim(' ') }
+foreach ($Brin in $birnNumbers) {
+    Write-Verbose "ParnasSys import students processing brin [$Brin]" -Verbose
+
+    # If no school year specified, getting the current Year.
+    $schoolYear = $config.schoolYear
+    if ([string]::IsNullOrEmpty($config.schoolYear)) {
+        if ((Get-Date).Month -lt 8) {
+            $schoolYear = (Get-Date).AddYears(-1).ToString("yyyy") + " / " + (Get-Date).ToString("yyyy")
+        } else {
+            $schoolYear = (Get-Date).ToString("yyyy") + " / " + (Get-Date).AddYears(1).ToString("yyyy")
+        }
     }
-    $leerLingenReturnNode = Get-ParnasSysLeerlingen `
-                            -Brin $Brin `
-                            -WebServiceUri  $Connectorsettings.webServiceUri `
-                            -SupplierName   $Connectorsettings.supplierName `
-                            -SupplierKey    $Connectorsettings.supplierKey `
-                            -schoolYear     $schoolYear `
-                            -Proxy $Connectorsettings.Proxy
+    Write-Verbose "ParnasSys import students getting data of shoolyear $SchoolYear" -Verbose
+    $spaltParnasSys = @{
+        Brin          = $Brin
+        WebServiceUri = $config.webServiceUri
+        SupplierName  = $config.supplierName
+        SupplierKey   = $config.supplierKey
+        schoolYear    = $schoolYear
+    }
 
-    $leerLingen = Convert_Returnxml_to_Leerlingenlist -returnNode $leerLingenReturnNode;
-    $dummyIndex = $personList.AddRange($leerLingen);
-}
+    if (-not [string]::IsNullOrEmpty($config.Proxy)) {
+        Write-Verbose "Added Proxy Address to webrequest $($config.Proxy)" -Verbose
+        $spaltParnasSys['Proxy'] = $config.Proxy
+    }
 
-Write-Verbose -Verbose "ParnasSys import leerlingen succesfull";
-$i=0
-foreach ($person in $personList)
-{
-    Write-Output $person | ConvertTo-json -Depth 10
-    $i = $i + 1;
-    if ($i -gt 20000 )
-    {break;}
+    $leerLingen , $leerLingenReturnNode = $null   # Needed for the second Brin
+    $leerLingenReturnNode = Get-ParnasSysLeerlingen @spaltParnasSys
+
+    $leerLingen = ConvertTo-ReturnXmlToLeerlingenlist -ReturnNode $leerLingenReturnNode
+    if ( $leerLingen.count -gt 0) {
+        $personList.AddRange($leerLingen)
+    }
+    Write-Verbose "Students found [$($leerLingen.Count)] for Brin [$Brin]" -Verbose
 }
+Write-Verbose "Total Students found [$($personList.Count)]" -Verbose
+Write-Output $personList | ConvertTo-Json -Depth 10
