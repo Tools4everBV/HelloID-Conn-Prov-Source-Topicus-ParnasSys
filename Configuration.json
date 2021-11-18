@@ -1,0 +1,63 @@
+[
+    {
+        "key": "WebServiceUri",
+        "type": "input",
+        "defaultValue": "",
+        "templateOptions": {
+            "label": "WebServiceUrL",
+            "description": "The URL to the PernasSys environment. [https://start.rodkat.parnassys.net/bao/services/cxf/v3/generic?wsdl]",
+            "placeholder": "https://start.rodkat.parnassys.net/bao/services/cxf/v3/generic?wsdl",
+            "required": true
+        }
+    },
+    {
+        "key": "SupplierName",
+        "type": "input",
+        "defaultValue": "",
+        "templateOptions": {
+            "label": "supplierName",
+            "description": "The SupplierKey for the ParnasSys Webservice",
+            "required": true
+        }
+    },
+    {
+        "key": "SupplierKey",
+        "type": "input",
+        "defaultValue": "",
+        "templateOptions": {
+            "type": "password",
+            "label": "SupplierKey",
+            "description": "The SupplierKey for the ParnasSys Webservice",
+            "required": true
+        }
+    },
+    {
+        "key": "brinIdentifiers",
+        "type": "input",
+        "defaultValue": "",
+        "templateOptions": {
+            "label": "brinIdentifiers",
+            "description": "The Brin number(s) of the Customer. [Comma separated, Example: 990I,2231]",
+            "required": true
+        }
+    },
+    {
+        "key": "schoolYear",
+        "type": "input",
+        "defaultValue": "",
+        "templateOptions": {
+            "label": "schoolYear",
+            "placeholder": "2017-2018",
+            "required": true
+        }
+    },
+    {
+        "key": "proxy",
+        "type": "input",
+        "defaultValue": "",
+        "templateOptions": {
+            "label": "proxy",
+            "placeholder": "http://localhost:8888"
+        }
+    }
+]
