@@ -34,7 +34,7 @@ function Get-ParnasSysLeerlingen {
             SOAPaction     = "`"getLeerlingen`""
         }
         # Fix the '&' char in the supplierName
-        $supplierNameEncoded = [System.Web.HttpUtility]::HtmlEncode($SupplierName)
+        $supplierNameEncoded = [System.Net.WebUtility]::HtmlEncode($SupplierName)
 
         $xml = [xml]('<?xml version="1.0" encoding="utf-8"?>
             <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
@@ -229,8 +229,8 @@ function ConvertTo-ReturnXmlToLeerlingenlist {
 # start of main loop of script execution
 $personList = [System.Collections.Generic.List[object]]::new()
 
-$birnNumbers = [array]$config.brinIdentifiers.split(',') | ForEach-Object { $_.trim(' ') }
-foreach ($Brin in $birnNumbers) {
+$brinNumbers = [array]$config.brinIdentifiers.split(',') | ForEach-Object { $_.trim(' ') }
+foreach ($Brin in $brinNumbers) {
     Write-Verbose "ParnasSys import students processing brin [$Brin]" -Verbose
 
     # If no school year specified, getting the current Year.
@@ -243,7 +243,7 @@ foreach ($Brin in $birnNumbers) {
         }
     }
     Write-Verbose "ParnasSys import students getting data of shoolyear $SchoolYear" -Verbose
-    $spaltParnasSys = @{
+    $splatParnasSys = @{
         Brin          = $Brin
         WebServiceUri = $config.webServiceUri
         SupplierName  = $config.supplierName
@@ -253,11 +253,11 @@ foreach ($Brin in $birnNumbers) {
 
     if (-not [string]::IsNullOrEmpty($config.Proxy)) {
         Write-Verbose "Added Proxy Address to webrequest $($config.Proxy)" -Verbose
-        $spaltParnasSys['Proxy'] = $config.Proxy
+        $splatParnasSys['Proxy'] = $config.Proxy
     }
 
     $leerLingen , $leerLingenReturnNode = $null   # Needed for the second Brin
-    $leerLingenReturnNode = Get-ParnasSysLeerlingen @spaltParnasSys
+    $leerLingenReturnNode = Get-ParnasSysLeerlingen @splatParnasSys
 
     $leerLingen = ConvertTo-ReturnXmlToLeerlingenlist -ReturnNode $leerLingenReturnNode
     if ( $leerLingen.count -gt 0) {

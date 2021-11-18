@@ -1,86 +1,91 @@
-# Connection definition
-$ConnectorSettings = @{
-    webServiceUri = "";
-    supplierName = "";
-    supplierKey = ""
-    proxy = "";
-    # Data collection options
-    brinIdentifiers = @('');
-}
+$config = $configuration | ConvertFrom-Json
+
+
 
 function Get-ParnasSysMedewerkers{
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory)]
         [string]
         $Brin,
 
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory)]
         [string]
         $WebServiceUri,
 
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory)]
         [string]
         $SupplierName,
 
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory)]
         [string]
         $SupplierKey,
 
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory)]
         [string]
         $SchoolYear,
 
-        [Parameter(Mandatory=$false)]
+        [Parameter()]
         [string]
-        $proxy = ""
+        $proxy 
     )
-    Write-Verbose -Verbose "ParnasSys import medewerkers getting data of shoolyear $SchoolYear";
+    Write-Verbose -Verbose "ParnasSys import Employees getting data of shoolyear $SchoolYear";
     try{
         $headers = @{
             'Content-Type' = "text/xml; charset=utf-8"
             SOAPaction = "`"getMedewerkers`""
         }
-        # $supplierNameEncoded =[System.Web.HttpUtility]::HtmlEncode($SupplierName)
-        $supplierNameEncoded = $SupplierName
-        $body = "<?xml version=`"1.0`" encoding=`"utf-8`"?><soap:Envelope xmlns:soap=`"http://schemas.xmlsoap.org/soap/envelope/`" xmlns:xsi=`"http://www.w3.org/2001/XMLSchema-instance`" xmlns:xsd=`"http://www.w3.org/2001/XMLSchema`"><soap:Body><getMedewerkers xmlns=`"http://www.topicus.nl/parnassys`"><leveranciernaam xmlns=`"`">$SupplierNameEncoded</leveranciernaam><leveranciersleutel xmlns=`"`">$SupplierKey</leveranciersleutel><brinnummer xmlns=`"`">$Brin</brinnummer><schooljaar xmlns=`"`">$SchoolYear</schooljaar></getMedewerkers></soap:Body></soap:Envelope>"
+        $supplierNameEncoded =[System.Net.WebUtility]::HtmlEncode($SupplierName) 
+               
+        $xml = [xml]( '<?xml version="1.0" encoding="utf-8"?>
+            <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+                xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+                <soap:Body>
+                    <getMedewerkers xmlns="http://www.topicus.nl/parnassys">
+                        <leveranciernaam xmlns="">{0}</leveranciernaam>
+                        <leveranciersleutel xmlns="">{1}</leveranciersleutel>
+                        <brinnummer xmlns="">{2}</brinnummer>
+                        <schooljaar xmlns="">{3}</schooljaar>
+                    </getMedewerkers>
+                </soap:Body>
+            </soap:Envelope>
+            ' -f $supplierNameEncoded, $SupplierKey, $Brin, $SchoolYear)
 
-        if ($Proxy -ne "")
-        {
-            $splatWebRequestParameters = @{
-                Uri = $webServiceUri
-                Method = 'Post'
-                Headers = $headers
-                Proxy = $proxy
-                UseBasicParsing = $true
-                Body = $body;
-            }
+       
+        $splatWebRequestParameters = @{
+            Uri = $webServiceUri
+            Method = 'Post'
+            Headers = $headers
+            UseBasicParsing = $true
+            ContentType     = 'text/xml'
+            Body = $xml.InnerXml
         }
-        else {
-            $splatWebRequestParameters = @{
-                Uri = $webServiceUri
-                Method = 'Post'
-                Headers = $headers
-                UseBasicParsing = $true
-                Body = $body;
-            }
+       
+
+        if (-not  [string]::IsNullOrEmpty($Proxy)) {
+            $splatWebRequestParameters['Proxy'] = $Proxy
         }
 
         Write-Verbose -Verbose "ParnasSys import medewerkers Invoking webRequest start ";
         $result = Invoke-WebRequest @splatWebRequestParameters  
         Write-Verbose -Verbose "ParnasSys import medewerkers Invoking webRequest finished";
+
         [xml] $parnasSysDataxml = $result.Content 
-        # envelope/body/getleerlingenresponse/return/leerlingen
+        # envelope/body/getmedewerkersresponse/return/leerlingen
         $medewerkersResponseNode= $parnasSysDataxml.FirstChild.FirstChild.FirstChild
         $returnNode = $medewerkersResponseNode.item("return")
+        Write-Output $returnNode
 
     }catch{
-        throw $_
-    }
-    return $returnNode;
+        Write-Verbose "Could not get employees for Brin: [$brin]" -Verbose
+        Write-Verbose "Error Details: [$($_.ErrorDetails.message)]" -Verbose
+        Write-Verbose "Exception Message: [$($_.Exception.Message)]" -Verbose
+        $PSCmdlet.ThrowTerminatingError($_)
+    }    
 }
 
-function Convert_Returnxml_to_Medewerkerlist {
+function ConvertTo-ReturnxmlToMedewerkerslist {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)]
@@ -191,8 +196,7 @@ function Convert_Returnxml_to_Medewerkerlist {
             telefoonWerk = $telefoonWerk
             voornaam = $medewerkerNode.item("firstName").FirstChild.Value;
             geboortedatum = $medewerkerNode.item("geboortedatum").FirstChild.Value;
-            geboortedatumOnzeker = $medewerkerNode.item("geboortedatumOnzeker").FirstChild.Value;
-            geboorteplaats = $medewerkerNode.item("geboorteplaats").FirstChild.Value;
+            geboortedatumOnzeker = $medewerkerNode.item("geboortedatumOnzeker").FirstChild.Value;      
             geboorteland = $medewerkerNode.item("geboorteland").FirstChild.Value;
         }
        $dummyIndex = $medewerkersObject.add($medewerkerObject);
@@ -202,34 +206,44 @@ function Convert_Returnxml_to_Medewerkerlist {
 
 # start of main loop of script execution
 $personList = [System.Collections.ArrayList]::new()
-foreach ($Brin in $Connectorsettings.brinIdentifiers)
-{
-    Write-Verbose -Verbose "ParnasSys import medewerkers looping Brins ($Brin)";
 
-    if ((Get-Date).Month -lt 8) {
-        $schoolYear = (Get-Date).AddYears(-1).ToString("yyyy") + " / " + (Get-Date).ToString("yyyy")
-    } else {
-        $schoolYear = (Get-Date).ToString("yyyy") + " / " + (Get-Date).AddYears(1).ToString("yyyy")
+$brinNumbers = [array]$config.brinIdentifiers.split(',') | ForEach-Object { $_.trim(' ') }
+foreach ($Brin in $brinNumbers)
+{
+    Write-Verbose -Verbose "ParnasSys import Employees looping Brins ($Brin)";
+    $schoolYear = $config.schoolYear
+    if ([string]::IsNullOrEmpty($config.schoolYear)) {
+        if ((Get-Date).Month -lt 8) {
+            $schoolYear = (Get-Date).AddYears(-1).ToString("yyyy") + " / " + (Get-Date).ToString("yyyy")
+        } else {
+            $schoolYear = (Get-Date).ToString("yyyy") + " / " + (Get-Date).AddYears(1).ToString("yyyy")
+        }
     }
-    $medewerkersReturnNode = Get-ParnasSysMedewerkers `
-                            -Brin $Brin `
-                            -WebServiceUri  $Connectorsettings.webServiceUri `
-                            -SupplierName   $Connectorsettings.supplierName `
-                            -SupplierKey    $Connectorsettings.supplierKey `
-                            -schoolYear     $schoolYear `
-                            -Proxy $Connectorsettings.Proxy 
+    $splatParnasSys = @{
+        Brin          = $Brin
+        WebServiceUri = $config.webServiceUri
+        SupplierName  = $config.supplierName
+        SupplierKey   = $config.supplierKey
+        schoolYear    = $schoolYear
+    }
 
-    $medewerkers = Convert_Returnxml_to_Medewerkerlist -returnNode $medewerkersReturnNode;
-    $dummyIndex = $personList.AddRange($medewerkers);
+    if (-not [string]::IsNullOrEmpty($config.Proxy)) {
+        Write-Verbose "Added Proxy Address to webrequest $($config.Proxy)" -Verbose
+        $spaltParnasSys['Proxy'] = $config.Proxy
+    }
+    $medewerkers , $medewerkersReturnNode = $null  # Needed for the second Brin
 
+    $medewerkersReturnNode = Get-ParnasSysMedewerkers @splatParnasSys                                                
+  
+    $medewerkers = ConvertTo-ReturnxmlToMedewerkerslist -returnNode $medewerkersReturnNode;
+    if ( $medewerkers.count -gt 0) {
+        $dummyIndex = $personList.AddRange($medewerkers);
+    }
+    Write-Verbose "Employees found [$($medewerkers.Count)] for Brin [$Brin]" -Verbose
 }
 
-Write-Verbose -Verbose "ParnasSys import medewerkers succesfull";
-$i=0
-foreach ($person in $personList)
-{
-    Write-Output $person | ConvertTo-json -Depth 10
-    $i = $i + 1;
-    if ($i -gt 20000 )
-    {break;}
-}
+Write-Verbose -Verbose "ParnasSys import employees succesfull";
+Write-Verbose "Total Employees found [$($personList.Count)]" -Verbose
+Write-Output $personList | ConvertTo-Json -Depth 10
+
+

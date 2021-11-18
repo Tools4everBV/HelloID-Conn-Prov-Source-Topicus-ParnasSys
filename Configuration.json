@@ -5,8 +5,8 @@
         "defaultValue": "",
         "templateOptions": {
             "label": "WebServiceUrL",
-            "description": "The URL to the Ysis environment. [https://tools4ever.acceptatie1.ysis.nl/um/api]",
-            "placeholder": "https://mycompany.acceptatie.ysis.nl/um/api",
+            "description": "The URL to the PernasSys environment. [https://start.rodkat.parnassys.net/bao/services/cxf/v3/generic?wsdl]",
+            "placeholder": "https://start.rodkat.parnassys.net/bao/services/cxf/v3/generic?wsdl",
             "required": true
         }
     },
