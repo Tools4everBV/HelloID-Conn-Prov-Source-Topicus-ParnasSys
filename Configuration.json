@@ -47,7 +47,7 @@
         "defaultValue": "",
         "templateOptions": {
             "label": "schoolYear",
-            "placeholder": "2017-2018",
+            "placeholder": "2017 / 2018",
             "required": true
         }
     },
