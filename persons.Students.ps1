@@ -159,14 +159,15 @@ function ConvertTo-ReturnXmlToLeerlingenlist {
             $contract = @{
                 ContractType     = "groep"
                 id               = $groepsIndelingNode.id
-                vanafDatum       = $groepsIndelingNode.vanafDatum
-                totDatum         = $groepsIndelingNode.totDatum
+                vanafDatum       = ([System.DateTimeOffset]$groepsIndelingNode.vanafDatum).ToString("yyyy-MM-dd")
+                totDatum         = ([System.DateTimeOffset]$groepsIndelingNode.totDatum).ToString("yyyy-MM-dd")
                 groep            = $groep
                 schooljaar       = $schooljaar
                 leerjaar         = $groepsIndelingNode.leerjaar
                 bekostigd        = $groepsIndelingNode.bekostigd
                 inschrijvingType = @{} #dummy voor de mapping
                 dienstverband    = @{} #dummy voor mapping
+				Brin			 = $Brin
             }
             $contracts += $contract;
         }
@@ -187,11 +188,12 @@ function ConvertTo-ReturnXmlToLeerlingenlist {
             $contract = @{
                 ContractType      = "inschrijving"
                 id                = $inschrijvingNode.id
-                datumInschrijving = $inschrijvingNode.datumInschrijving
-                vanafDatum        = $inschrijvingNode.datumInschrijving  #copy to ease the mapping
+                datumInschrijving = ([System.DateTimeOffset]$inschrijvingNode.datumInschrijving).ToString("yyyy-MM-dd")
+                vanafDatum        = ([System.DateTimeOffset]$inschrijvingNode.datumInschrijving).ToString("yyyy-MM-dd")  #copy to ease the mapping
                 inschrijvingType  = $inschrijvingType
                 groep             = @{} #dummy for mapping
                 dienstverband     = @{} #dummy for mapping
+				Brin			  = $Brin
             }
             $contracts += $contract
         }
@@ -199,15 +201,15 @@ function ConvertTo-ReturnXmlToLeerlingenlist {
         $leerlingObject = @{
             PersonType             = "leerling"
             Brin                   = $Brin
-            ExternalId             = [string]($Brin + "_" + $leerlingNode.id)
-            DisplayName            = $leerlingNode.roepNaam + $leerlingNode.achternaam
+            ExternalId             = [string]($Brin + "_" + $leerlingNode.leerlingNummer)
+            DisplayName            = $leerlingNode.roepNaam + " " +  $leerlingNode.achternaam
 
             achternaam             = $leerlingNode.achternaam
             achternaamOfficieel    = $leerlingNode.achternaamOfficieel
             adres                  = $adres
             Contracts              = $contracts
             datumAanmelding        = $leerlingNode.datumAanmelding
-            geboortedatum          = $leerlingNode.geboortedatum
+            geboortedatum   	   = ([System.DateTimeOffset]$leerlingNode.geboortedatum).ToString("yyyy-MM-dd")
             geboortedatumOnzeker   = $leerlingNode.geboortedatumOnzeker
             geboorteplaats         = $leerlingNode.geboorteplaats
             geslacht               = $leerlingNode.geslacht
