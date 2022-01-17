@@ -1,7 +1,5 @@
 # HelloID-Conn-Prov-Source-Topicus-ParnasSys
 
-> **Not implemented yet**
-
 <p align="">
   <img src="Assets/logo.png" width="300">
 </p>
