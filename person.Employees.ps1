@@ -229,7 +229,7 @@ foreach ($Brin in $brinNumbers)
 
     if (-not [string]::IsNullOrEmpty($config.Proxy)) {
         Write-Verbose "Added Proxy Address to webrequest $($config.Proxy)" -Verbose
-        $spaltParnasSys['Proxy'] = $config.Proxy
+        $splatParnasSys['Proxy'] = $config.Proxy
     }
     $medewerkers , $medewerkersReturnNode = $null  # Needed for the second Brin
 
