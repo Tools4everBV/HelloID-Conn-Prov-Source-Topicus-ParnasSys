@@ -1,8 +1,6 @@
 $config = $configuration | ConvertFrom-Json
 
-
-
-function Get-ParnasSysMedewerkers{
+function Get-ParnasSysMedewerkers {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -27,16 +25,16 @@ function Get-ParnasSysMedewerkers{
 
         [Parameter()]
         [string]
-        $proxy 
+        $proxy
     )
-    Write-Verbose -Verbose "ParnasSys import Employees getting data of shoolyear $SchoolYear";
-    try{
+    Write-Verbose -Verbose "ParnasSys import Employees getting data of shoolyear $SchoolYear"
+    try {
         $headers = @{
-            'Content-Type' = "text/xml; charset=utf-8"
-            SOAPaction = "`"getMedewerkers`""
+            'Content-Type' = 'text/xml; charset=utf-8'
+            SOAPaction     = "`"getMedewerkers`""
         }
-        $supplierNameEncoded =[System.Net.WebUtility]::HtmlEncode($SupplierName) 
-               
+        $supplierNameEncoded = [System.Net.WebUtility]::HtmlEncode($SupplierName)
+
         $xml = [xml]( '<?xml version="1.0" encoding="utf-8"?>
             <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -52,127 +50,98 @@ function Get-ParnasSysMedewerkers{
             </soap:Envelope>
             ' -f $supplierNameEncoded, $SupplierKey, $Brin, $SchoolYear)
 
-       
+
         $splatWebRequestParameters = @{
-            Uri = $webServiceUri
-            Method = 'Post'
-            Headers = $headers
+            Uri             = $webServiceUri
+            Method          = 'Post'
+            Headers         = $headers
             UseBasicParsing = $true
             ContentType     = 'text/xml'
-            Body = $xml.InnerXml
+            Body            = $xml.InnerXml
         }
-       
+
 
         if (-not  [string]::IsNullOrEmpty($Proxy)) {
             $splatWebRequestParameters['Proxy'] = $Proxy
         }
 
-        Write-Verbose -Verbose "ParnasSys import medewerkers Invoking webRequest start ";
-        $result = Invoke-WebRequest @splatWebRequestParameters  
-        Write-Verbose -Verbose "ParnasSys import medewerkers Invoking webRequest finished";
+        Write-Verbose  'ParnasSys import medewerkers Invoking webRequest start ' -Verbose
+        $result = Invoke-WebRequest @splatWebRequestParameters
+        Write-Verbose  'ParnasSys import medewerkers Invoking webRequest finished' -Verbose
 
-        [xml] $parnasSysDataxml = $result.Content 
+        [xml] $parnasSysDataxml = $result.Content
         # envelope/body/getmedewerkersresponse/return/leerlingen
-        $medewerkersResponseNode= $parnasSysDataxml.FirstChild.FirstChild.FirstChild
-        $returnNode = $medewerkersResponseNode.item("return")
+        $medewerkersResponseNode = $parnasSysDataxml.FirstChild.FirstChild.FirstChild
+        $returnNode = $medewerkersResponseNode.item('return')
         Write-Output $returnNode
 
-    }catch{
+    } catch {
         Write-Verbose "Could not get employees for Brin: [$brin]" -Verbose
         Write-Verbose "Error Details: [$($_.ErrorDetails.message)]" -Verbose
         Write-Verbose "Exception Message: [$($_.Exception.Message)]" -Verbose
         $PSCmdlet.ThrowTerminatingError($_)
-    }    
+    }
 }
 
 function ConvertTo-ReturnxmlToMedewerkerslist {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory)]
         [System.Xml.xmlelement]
         $ReturnNode
     )
 
-    $medewerkersObject =  [System.Collections.ArrayList]::new()
+    $medewerkersObject = [System.Collections.ArrayList]::new()
 
-    $adressenNode = $returnNode.item("adressen")   
+    $adressenNode = $returnNode.item("adressen")
     $medewerkersNode = $returnNode.item("medewerkers")
     $dienstverbandenNode = $returnNode.item("dienstverbanden")
 
-    $nodePath = "medewerker" 
+    $nodePath = "medewerker"
     $medewerkerNodeList = $medewerkersNode.SelectNodes($nodePath)
 
-    foreach($medewerkerNode in $medewerkerNodeList){
+    foreach ($medewerkerNode in $medewerkerNodeList) {
 
-        $contracts = [System.Collections.ArrayList]::new();
-
-        $nodePath = "adres[id=`'" + $medewerkerNode.item("adres").FirstChild.Value  + "`']"
-        $adresNode = $adressenNode.SelectSingleNode($nodePath) 
-        $adres = @{ id =  $medewerkerNode.item("adres").FirstChild.Value }
-        if ($null -ne $adresNode){
-
-            if ( $adresNode.item("geheimadres").FirstChild.Value -eq "false"){
-
-                $telefoon = @{}
-                if ($adresNode.item("telefoon").item("geheim").FirstChild.Value -eq "false")
-                {
-                    $telefoon = @{
-                        id = $adresNode.item("telefoon").item("id").FirstChild.Value;
-                        nummer = $adresNode.item("telefoon").item("nummer").FirstChild.Value;
-                    }
-                }
-                $adres = @{
-                    id =  $adresNode.item("id").FirstChild.Value;
-                    gemeente =  $adresNode.item("gemeente").FirstChild.Value;
-                    plaats = $adresNode.item("plaats").FirstChild.Value;
-                    straat = $adresNode.item("straat").FirstChild.Value;
-                    huisnummer = $adresNode.item("huisnummer").FirstChild.Value;
-                    postcode = $adresNode.item("postcode").FirstChild.Value;
-                    land = $adresNode.item("land").FirstChild.Value;
-                    telefoon = $telefoon;
-                }
-            }
-        }
+        $contracts = [System.Collections.Generic.list[object]]::new()
 
         $mobile = @{}
-        if ($null -ne $medewerkerNode.item("mobile")){
+        if ($null -ne $medewerkerNode.item("mobile")) {
             if ($medewerkerNode.item("mobile").item("geheim").FirstChild.Value -eq "false") {
                 $mobile = @{
-                    id = $medewerkerNode.item("mobile").item("id").FirstChild.Value;
-                    nummer = $medewerkerNode.item("mobile").item("nummer").FirstChild.Value;
+                    id     = $medewerkerNode.item("mobile").item("id").FirstChild.Value
+                    nummer = $medewerkerNode.item("mobile").item("nummer").FirstChild.Value
                 }
             }
         }
 
         $telefoonWerk = @{}
-        if ($null -ne $medewerkerNode.item("telefoonWerk")){
+        if ($null -ne $medewerkerNode.item("telefoonWerk")) {
             if ($medewerkerNode.item("telefoonWerk").item("geheim").FirstChild.Value -eq "false") {
                 $telefoonWerk = @{
-                    id = $medewerkerNode.item("telefoonWerk").item("id").FirstChild.Value;
-                    nummer = $medewerkerNode.item("telefoonWerk").item("nummer").FirstChild.Value;
+                    id     = $medewerkerNode.item("telefoonWerk").item("id").FirstChild.Value
+                    nummer = $medewerkerNode.item("telefoonWerk").item("nummer").FirstChild.Value
                 }
             }
-        } 
+        }
 
-        $nodePath = "dienstverbanden/dienstverband" 
+        $nodePath = "dienstverbanden/dienstverband"
         $medewerker_dienstverbandNodeList = $medewerkerNode.SelectNodes($nodePath)
-        foreach ($medewerker_dienstverbandNode in $medewerker_dienstverbandNodeList )
-        {
+        foreach ($medewerker_dienstverbandNode in $medewerker_dienstverbandNodeList ) {
             $nodePath = "dienstverband[id=`'" + $medewerker_dienstverbandNode.FirstChild.Value + "`']"
             $dienstverbandNode = $dienstverbandenNode.SelectSingleNode($nodePath)
-            $dienstverband = @{id =  $dienstverbandNode.FirstChild.Value}
+            $dienstverband = @{id = $dienstverbandNode.FirstChild.Value }
             if ($null -ne $dienstverbandNode) {
                 $dienstverband = @{
-                    id = $dienstverbandNode.Item("id").FirstChild.Value
+                    id        = $dienstverbandNode.Item("id").FirstChild.Value
                     afkorting = $dienstverbandNode.Item("afkorting").FirstChild.Value
-                    naam = $dienstverbandNode.Item("afkorting").FirstChild.Value
+                    naam      = $dienstverbandNode.Item("afkorting").FirstChild.Value
                 }
             }
 
-            $contract  = @{
-                ContractType = "dienstverband"
-                dienstverband = $dienstverband;
-                groep = @{} #dummy voor mapping
+            $contract = @{
+                ContractType     = "dienstverband"
+                dienstverband    = $dienstverband
+                groep            = @{} #dummy voor mapping
                 inschrijvingType = @{} #dummy voor de mapping
             }
             $contracts += $contract
@@ -180,26 +149,26 @@ function ConvertTo-ReturnxmlToMedewerkerslist {
         }
 
         $medewerkerObject = @{
-            PersonType = "medewerker"
-            Brin = $Brin                    
-            ExternalId = [string] ($Brin + "_" + $medewerkerNode.item("id").FirstChild.Value)
-            DisplayName = $medewerkerNode.item("roepNaam").FirstChild.Value +  $medewerkerNode.item("achternaam").FirstChild.Value;
-         
-            aanhef = $medewerkerNode.item("aanhef").FirstChild.Value;
-            achternaam = $medewerkerNode.item("lastName").FirstChild.Value;
-            adres = $adres 
-            Contracts = $contracts            
-            email = $medewerkerNode.item("email").FirstChild.Value;
-            mobile = $mobile
-            roepnaam = $medewerkerNode.item("roepNaam").FirstChild.Value;
-            voornamen = $medewerkerNode.item("firstName").FirstChild.Value;   #there is no voornamen in medewerker
-            telefoonWerk = $telefoonWerk
-            voornaam = $medewerkerNode.item("firstName").FirstChild.Value;
-            geboortedatum = $medewerkerNode.item("geboortedatum").FirstChild.Value;
-            geboortedatumOnzeker = $medewerkerNode.item("geboortedatumOnzeker").FirstChild.Value;      
-            geboorteland = $medewerkerNode.item("geboorteland").FirstChild.Value;
+            PersonType           = "medewerker"
+            Brin                 = $Brin
+            ExternalId           = [string] ($Brin + "_" + $medewerkerNode.item("id").FirstChild.Value)
+            DisplayName          = $medewerkerNode.item("roepNaam").FirstChild.Value + $medewerkerNode.item("achternaam").FirstChild.Value
+
+            aanhef               = $medewerkerNode.item("aanhef").FirstChild.Value
+            achternaam           = $medewerkerNode.item("lastName").FirstChild.Value
+            adres                = $adres
+            Contracts            = $contracts
+            email                = $medewerkerNode.item("email").FirstChild.Value
+            mobile               = $mobile
+            roepnaam             = $medewerkerNode.item("roepNaam").FirstChild.Value
+            voornamen            = $medewerkerNode.item("firstName").FirstChild.Value #there is no voornamen in medewerker
+            telefoonWerk         = $telefoonWerk
+            voornaam             = $medewerkerNode.item("firstName").FirstChild.Value
+            geboortedatum        = $medewerkerNode.item("geboortedatum").FirstChild.Value
+            geboortedatumOnzeker = $medewerkerNode.item("geboortedatumOnzeker").FirstChild.Value
+            geboorteland         = $medewerkerNode.item("geboorteland").FirstChild.Value
         }
-       $dummyIndex = $medewerkersObject.add($medewerkerObject);
+        $dummyIndex = $medewerkersObject.add($medewerkerObject)
     }
     return $medewerkersObject
 }
@@ -208,9 +177,8 @@ function ConvertTo-ReturnxmlToMedewerkerslist {
 $personList = [System.Collections.ArrayList]::new()
 
 $brinNumbers = [array]$config.brinIdentifiers.split(',') | ForEach-Object { $_.trim(' ') }
-foreach ($Brin in $brinNumbers)
-{
-    Write-Verbose -Verbose "ParnasSys import Employees looping Brins ($Brin)";
+foreach ($Brin in $brinNumbers) {
+    Write-Verbose -Verbose "ParnasSys import Employees looping Brins ($Brin)"
     $schoolYear = $config.schoolYear
     if ([string]::IsNullOrEmpty($config.schoolYear)) {
         if ((Get-Date).Month -lt 8) {
@@ -233,16 +201,16 @@ foreach ($Brin in $brinNumbers)
     }
     $medewerkers , $medewerkersReturnNode = $null  # Needed for the second Brin
 
-    $medewerkersReturnNode = Get-ParnasSysMedewerkers @splatParnasSys                                                
-  
-    $medewerkers = ConvertTo-ReturnxmlToMedewerkerslist -returnNode $medewerkersReturnNode;
+    $medewerkersReturnNode = Get-ParnasSysMedewerkers @splatParnasSys
+
+    $medewerkers = ConvertTo-ReturnxmlToMedewerkerslist -returnNode $medewerkersReturnNode
     if ( $medewerkers.count -gt 0) {
-        $dummyIndex = $personList.AddRange($medewerkers);
+        $dummyIndex = $personList.AddRange($medewerkers)
     }
     Write-Verbose "Employees found [$($medewerkers.Count)] for Brin [$Brin]" -Verbose
 }
 
-Write-Verbose -Verbose "ParnasSys import employees succesfull";
+Write-Verbose -Verbose "ParnasSys import employees succesfull"
 Write-Verbose "Total Employees found [$($personList.Count)]" -Verbose
 Write-Output $personList | ConvertTo-Json -Depth 10
 

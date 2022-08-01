@@ -11,7 +11,7 @@
 </p>
 
 ## Introduction
-This connector retrieves the data from ParnasSys. The persons and contracts. The connectors contains two "person" scripts. One for the Employee and one for the Student. There is no Department script.
+This connector retrieves the data from ParnasSys. The persons. The connectors contains two "person" scripts. One for the Employee and one for the Student. There is no Department script. You can use this connector in addition to your current HR system.
 
 ## Prerequisites
  - The connector depends on the additional Custom fields. Make sure these a present before importing the mapping
