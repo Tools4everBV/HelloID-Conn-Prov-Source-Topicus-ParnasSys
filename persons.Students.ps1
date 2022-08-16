@@ -96,6 +96,7 @@ function ConvertTo-ReturnXmlToLeerlingenlist {
     $leerlingNodeList = $leerlingenNode.SelectNodes($nodePath)
 
     foreach ($leerlingNode in $leerlingNodeList) {
+        
         $contracts = [System.Collections.ArrayList]::new();
 
         $nodePath = "adres[id=`'" + $leerlingNode.leerlingAdres + "`']"
@@ -123,6 +124,8 @@ function ConvertTo-ReturnXmlToLeerlingenlist {
             }
         }
 
+        $schooltype = "SO"
+
         $nodePath = "groepsindelingen/groepsindeling"
         $groepsIndelingNodeList = $leerlingNode.SelectNodes($nodePath)
         foreach ($groepsIndelingNode in $groepsIndelingNodeList ) {
@@ -145,6 +148,16 @@ function ConvertTo-ReturnXmlToLeerlingenlist {
                     lokaal     = $groepNode.code
                     schooljaar = $groepschooljaar
                 }
+                
+            }
+
+            $nodePathOpleidinggegevens = "opleidinggegevens"
+            $opleidinggegevensNode = $groepsIndelingNode.SelectNodes($nodePathOpleidinggegevens)
+            
+            if(-not([string]::IsNullOrEmpty($opleidinggegevensNode.voortgezet)) -and $opleidinggegevensNode.voortgezet -eq 'true')
+            {
+                $schooltype = "VSO"
+
             }
 
             $nodePath = "schooljaar[id=`'" + $groepsIndelingNode.schooljaar + "`']"
@@ -168,6 +181,7 @@ function ConvertTo-ReturnXmlToLeerlingenlist {
                 inschrijvingType = @{} #dummy voor de mapping
                 dienstverband    = @{} #dummy voor mapping
 				Brin			 = $Brin
+                Voortgezet       = $opleidinggegevensNode.voortgezet
             }
             $contracts += $contract;
         }
@@ -185,17 +199,31 @@ function ConvertTo-ReturnXmlToLeerlingenlist {
                     code         = $inschrijvingtypeNode.code
                 }
             }
+
+            $datumInschrijving = "";
+            if(-not([string]::IsNullOrEmpty($inschrijvingNode.datumInschrijving)))
+            {
+                $datumInschrijving = ([System.DateTimeOffset]$inschrijvingNode.datumInschrijving).ToString("yyyy-MM-dd")
+            }
+
             $contract = @{
                 ContractType      = "inschrijving"
                 id                = $inschrijvingNode.id
                 datumInschrijving = ([System.DateTimeOffset]$inschrijvingNode.datumInschrijving).ToString("yyyy-MM-dd")
                 vanafDatum        = ([System.DateTimeOffset]$inschrijvingNode.datumInschrijving).ToString("yyyy-MM-dd")  #copy to ease the mapping
+                totDatum          = ([System.DateTimeOffset]$inschrijvingNode.datumUitschrijving).ToString("yyyy-MM-dd")
                 inschrijvingType  = $inschrijvingType
                 groep             = @{} #dummy for mapping
                 dienstverband     = @{} #dummy for mapping
 				Brin			  = $Brin
             }
             $contracts += $contract
+        }
+
+        $geboortedatum = "";
+        if(-not([string]::IsNullOrEmpty($leerlingNode.geboortedatum)))
+        {
+            $geboortedatum = ([System.DateTimeOffset]$leerlingNode.geboortedatum).ToString("yyyy-MM-dd")
         }
 
         $leerlingObject = @{
@@ -209,7 +237,7 @@ function ConvertTo-ReturnXmlToLeerlingenlist {
             adres                  = $adres
             Contracts              = $contracts
             datumAanmelding        = $leerlingNode.datumAanmelding
-            geboortedatum   	   = ([System.DateTimeOffset]$leerlingNode.geboortedatum).ToString("yyyy-MM-dd")
+            geboortedatum   	   = $geboortedatum
             geboortedatumOnzeker   = $leerlingNode.geboortedatumOnzeker
             geboorteplaats         = $leerlingNode.geboorteplaats
             geslacht               = $leerlingNode.geslacht
@@ -220,6 +248,7 @@ function ConvertTo-ReturnXmlToLeerlingenlist {
             tussenvoegselOfficieel = $leerlingNode.tussenvoegselOfficieel
             voornamen              = $leerlingNode.voornamen
             telefoonWerk           = @{} #dummy for mapping
+            SchoolType             = $schooltype
 
         }
         $null = $leerlingenObject.add($leerlingObject);
