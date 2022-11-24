@@ -1,8 +1,8 @@
 # HelloID-Conn-Prov-Source-Topicus-ParnasSys
 
-| :information_source: Information |
+| :warning: Warning - **You need to sign a contract with the supplier before implementing this connector**|
 |:---------------------------|
-| This repository contains the connector and configuration code only. The implementer is responsible to acquire the connection details such as username, password, certificate, etc. You might even need to sign a contract or agreement with the supplier before implementing this connector. Please contact the client's application manager to coordinate the connector requirements.       |
+| This repository contains the connector and configuration code only. The implementer is responsible to acquire the connection details such as username, password, certificate, etc. Please contact the client's application manager to coordinate the connector requirements.       |
 
 <br />
 
@@ -14,6 +14,7 @@
 This connector retrieves the data from ParnasSys. The persons. The connectors contains two "person" scripts. One for the Employee and one for the Student. There is no Department script. You can use this connector in addition to your current HR system.
 
 ## Prerequisites
+ - As implementer, you need your own set of credentials before you can implement this connector. Therefore you need to sign a contract with the supplier.
  - The connector depends on the additional Custom fields. Make sure these a present before importing the mapping
     -  CustomField Persons:
         - Custom.Brin
@@ -32,7 +33,7 @@ The following settings are required to connect to the API.
 | Setting     | Description |
 | ------------ | ----------- |
 | webServiceUri     |URL to the webservice. Example: https://parnassys.net or https://acceptatie.parnassys.net/bao/services/cxf/v3/generic  |
-| supplierName   |The supplier name (account) used for the connection example: *Identity & Access Manager (IAM)*  |
+| supplierName   |The supplier name (account) used for the connection  |
 | supplierKey    |  The associated password|
 | brinIdentifiers | An array of brin numbers representing the schools/organizations from wich to collect data.  The script loops though all schools in this list
 | schoolYear | The year to get from the webservice. Example: *2020 / 2021*
