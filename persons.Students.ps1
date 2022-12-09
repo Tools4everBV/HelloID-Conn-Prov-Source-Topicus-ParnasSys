@@ -69,7 +69,8 @@ function Get-ParnasSysLeerlingen {
         $leerLingenResponseNode = $parnasSysDataxml.FirstChild.FirstChild.FirstChild
         $returnNode = $leerLingenResponseNode.item('return')
         Write-Output $returnNode
-    } catch {
+    }
+    catch {
         Write-Verbose "Could not get Students for Brin: [$brin]" -Verbose
         Write-Verbose "Error Details: [$($_.ErrorDetails.message)]" -Verbose
         Write-Verbose "Exception Message: [$($_.Exception.Message)]" -Verbose
@@ -154,8 +155,7 @@ function ConvertTo-ReturnXmlToLeerlingenlist {
             $nodePathOpleidinggegevens = "opleidinggegevens"
             $opleidinggegevensNode = $groepsIndelingNode.SelectNodes($nodePathOpleidinggegevens)
             
-            if(-not([string]::IsNullOrEmpty($opleidinggegevensNode.voortgezet)) -and $opleidinggegevensNode.voortgezet -eq 'true')
-            {
+            if (-not([string]::IsNullOrEmpty($opleidinggegevensNode.voortgezet)) -and $opleidinggegevensNode.voortgezet -eq 'true') {
                 $schooltype = "VSO"
 
             }
@@ -169,18 +169,29 @@ function ConvertTo-ReturnXmlToLeerlingenlist {
                     naam = $schooljaarNode.naam
                 }
             }
+
+            # Check if vanafDatum has a value, if so convert to valid string format, else set to empty string
+            $vanafDatum = "";
+            if (-not([string]::IsNullOrEmpty($groepsIndelingNode.vanafDatum))) {
+                $vanafDatum = ([System.DateTimeOffset]$groepsIndelingNode.vanafDatum).ToString("yyyy-MM-dd")
+            }
+            # Check if datumUitschrijving has a value, if so convert to valid string format, else set to empty string
+            $totDatum = "";
+            if (-not([string]::IsNullOrEmpty($groepsIndelingNode.totDatum))) {
+                $totDatum = ([System.DateTimeOffset]$groepsIndelingNode.totDatum).ToString("yyyy-MM-dd")
+            }
             $contract = @{
                 ContractType     = "groep"
                 id               = $groepsIndelingNode.id
-                vanafDatum       = ([System.DateTimeOffset]$groepsIndelingNode.vanafDatum).ToString("yyyy-MM-dd")
-                totDatum         = ([System.DateTimeOffset]$groepsIndelingNode.totDatum).ToString("yyyy-MM-dd")
+                vanafDatum       = $vanafDatum
+                totDatum         = $totDatum
                 groep            = $groep
                 schooljaar       = $schooljaar
                 leerjaar         = $groepsIndelingNode.leerjaar
                 bekostigd        = $groepsIndelingNode.bekostigd
                 inschrijvingType = @{} #dummy voor de mapping
                 dienstverband    = @{} #dummy voor mapping
-				Brin			 = $Brin
+                Brin             = $Brin
                 Voortgezet       = $opleidinggegevensNode.voortgezet
             }
             $contracts += $contract;
@@ -200,29 +211,32 @@ function ConvertTo-ReturnXmlToLeerlingenlist {
                 }
             }
 
+            # Check if datumInschrijving has a value, if so convert to valid string format, else set to empty string
             $datumInschrijving = "";
-            if(-not([string]::IsNullOrEmpty($inschrijvingNode.datumInschrijving)))
-            {
+            if (-not([string]::IsNullOrEmpty($inschrijvingNode.datumInschrijving))) {
                 $datumInschrijving = ([System.DateTimeOffset]$inschrijvingNode.datumInschrijving).ToString("yyyy-MM-dd")
             }
-
+            # Check if datumUitschrijving has a value, if so convert to valid string format, else set to empty string
+            $datumUitschrijving = "";
+            if (-not([string]::IsNullOrEmpty($inschrijvingNode.datumUitschrijving))) {
+                $datumUitschrijving = ([System.DateTimeOffset]$inschrijvingNode.datumUitschrijving).ToString("yyyy-MM-dd")
+            }
             $contract = @{
                 ContractType      = "inschrijving"
                 id                = $inschrijvingNode.id
-                datumInschrijving = ([System.DateTimeOffset]$inschrijvingNode.datumInschrijving).ToString("yyyy-MM-dd")
-                vanafDatum        = ([System.DateTimeOffset]$inschrijvingNode.datumInschrijving).ToString("yyyy-MM-dd")  #copy to ease the mapping
-                totDatum          = ([System.DateTimeOffset]$inschrijvingNode.datumUitschrijving).ToString("yyyy-MM-dd")
+                datumInschrijving = $datumInschrijving
+                vanafDatum        = $datumInschrijving  #copy to ease the mapping
+                totDatum          = $datumUitschrijving
                 inschrijvingType  = $inschrijvingType
                 groep             = @{} #dummy for mapping
                 dienstverband     = @{} #dummy for mapping
-				Brin			  = $Brin
+                Brin              = $Brin
             }
             $contracts += $contract
         }
 
         $geboortedatum = "";
-        if(-not([string]::IsNullOrEmpty($leerlingNode.geboortedatum)))
-        {
+        if (-not([string]::IsNullOrEmpty($leerlingNode.geboortedatum))) {
             $geboortedatum = ([System.DateTimeOffset]$leerlingNode.geboortedatum).ToString("yyyy-MM-dd")
         }
 
@@ -230,14 +244,14 @@ function ConvertTo-ReturnXmlToLeerlingenlist {
             PersonType             = "leerling"
             Brin                   = $Brin
             ExternalId             = [string]($Brin + "_" + $leerlingNode.leerlingNummer)
-            DisplayName            = $leerlingNode.roepNaam + " " +  $leerlingNode.achternaam
+            DisplayName            = $leerlingNode.roepNaam + " " + $leerlingNode.achternaam
 
             achternaam             = $leerlingNode.achternaam
             achternaamOfficieel    = $leerlingNode.achternaamOfficieel
             adres                  = $adres
             Contracts              = $contracts
             datumAanmelding        = $leerlingNode.datumAanmelding
-            geboortedatum   	   = $geboortedatum
+            geboortedatum          = $geboortedatum
             geboortedatumOnzeker   = $leerlingNode.geboortedatumOnzeker
             geboorteplaats         = $leerlingNode.geboorteplaats
             geslacht               = $leerlingNode.geslacht
@@ -269,7 +283,8 @@ foreach ($Brin in $brinNumbers) {
     if ([string]::IsNullOrEmpty($config.schoolYear)) {
         if ((Get-Date).Month -lt 8) {
             $schoolYear = (Get-Date).AddYears(-1).ToString("yyyy") + " / " + (Get-Date).ToString("yyyy")
-        } else {
+        }
+        else {
             $schoolYear = (Get-Date).ToString("yyyy") + " / " + (Get-Date).AddYears(1).ToString("yyyy")
         }
     }
