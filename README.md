@@ -5,9 +5,8 @@
 | This repository contains the connector and configuration code only. The implementer is responsible to acquire the connection details such as username, password, certificate, etc. Please contact the client's application manager to coordinate the connector requirements.       |
 
 <br />
-
-<p align="">
-  <img src="Assets/logo.png" width="300">
+<p align="center">
+  <img src="https://www.tools4ever.nl/connector-logos/parnassys-logo.png">
 </p>
 
 ## Introduction
