@@ -31,7 +31,7 @@ The following settings are required to connect to the API.
 
 | Setting     | Description |
 | ------------ | ----------- |
-| webServiceUri     |URL to the webservice. Example: https://parnassys.net or https://acceptatie.parnassys.net/bao/services/cxf/v3/generic  |
+| webServiceUri     |URL to the webservice. Example: https://parnassys.net/gkv/GeneriekeService?wsdl |
 | supplierName   |The supplier name (account) used for the connection  |
 | supplierKey    |  The associated password|
 | brinIdentifiers | An array of brin numbers representing the schools/organizations from wich to collect data.  The script loops though all schools in this list
