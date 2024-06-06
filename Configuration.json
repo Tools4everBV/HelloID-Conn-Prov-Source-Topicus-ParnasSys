@@ -5,8 +5,8 @@
         "defaultValue": "",
         "templateOptions": {
             "label": "WebServiceUrL",
-            "description": "The URL to the PernasSys environment. [https://start.rodkat.parnassys.net/bao/services/cxf/v3/generic?wsdl]",
-            "placeholder": "https://start.rodkat.parnassys.net/bao/services/cxf/v3/generic?wsdl",
+            "description": "The URL to the PernasSys environment. [https://parnassys.net/gkv/GeneriekeService?wsdl]",
+            "placeholder": "https://parnassys.net/gkv/GeneriekeService?wsdl",
             "required": true
         }
     },
