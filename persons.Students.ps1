@@ -1,5 +1,15 @@
 $config = $configuration | ConvertFrom-Json
 
+$VerbosePreference = "SilentlyContinue"
+$InformationPreference = "Continue"
+$WarningPreference = "Continue"
+
+# Set debug logging
+switch ($($c.isDebug)) {
+    $true { $VerbosePreference = 'Continue' }
+    $false { $VerbosePreference = 'SilentlyContinue' }
+}
+
 #region functions
 function Get-ParnasSysLeerlingen {
     [CmdletBinding()]
@@ -71,9 +81,9 @@ function Get-ParnasSysLeerlingen {
         Write-Output $returnNode
     }
     catch {
-        Write-Verbose "Could not get Students for Brin: [$brin]" -Verbose
-        Write-Verbose "Error Details: [$($_.ErrorDetails.message)]" -Verbose
-        Write-Verbose "Exception Message: [$($_.Exception.Message)]" -Verbose
+        Write-Verbose "Could not get Students for Brin: [$brin] [$SchoolYear]" -Verbose
+        Write-Verbose "Error Details: [$($_.ErrorDetails.message)]"
+        Write-Verbose "Exception Message: [$($_.Exception.Message)]" 
         $PSCmdlet.ThrowTerminatingError($_)
     }
 }
@@ -129,6 +139,9 @@ function ConvertTo-ReturnXmlToLeerlingenlist {
 
         $nodePath = "groepsindelingen/groepsindeling"
         $groepsIndelingNodeList = $leerlingNode.SelectNodes($nodePath)
+		
+        $aangemeld = 'false'
+		
         foreach ($groepsIndelingNode in $groepsIndelingNodeList ) {
             $nodePath = "groep[id=`'" + $groepsIndelingNode.groep + "`']"
             $groepNode = $groepenNode.SelectSingleNode($nodePath)
@@ -146,16 +159,24 @@ function ConvertTo-ReturnXmlToLeerlingenlist {
                 $groep = @{
                     id         = $groepNode.id
                     naam       = $groepNode.naam
-                    lokaal     = $groepNode.code
+                    lokaal     = $groepNode.lokaal
                     schooljaar = $groepschooljaar
                 }
                 
+            }
+			
+            if ($groep.naam -eq "aangemeld") {
+                $aangemeld = $true
             }
 
             $nodePathOpleidinggegevens = "opleidinggegevens"
             $opleidinggegevensNode = $groepsIndelingNode.SelectNodes($nodePathOpleidinggegevens)
             
-            if (-not([string]::IsNullOrEmpty($opleidinggegevensNode.voortgezet)) -and $opleidinggegevensNode.voortgezet -eq 'true') {
+            if (-not([string]::IsNullOrEmpty($opleidinggegevensNode.opleiding)) -and -not([string]::IsNullOrEmpty($opleidinggegevensNode.opleiding.type))) {
+                $schooltype = $opleidinggegevensNode.opleiding.type
+
+            }
+            elseif (-not([string]::IsNullOrEmpty($opleidinggegevensNode.voortgezet)) -and $opleidinggegevensNode.voortgezet -eq 'true') {
                 $schooltype = "VSO"
 
             }
@@ -169,22 +190,11 @@ function ConvertTo-ReturnXmlToLeerlingenlist {
                     naam = $schooljaarNode.naam
                 }
             }
-
-            # Check if vanafDatum has a value, if so convert to valid string format, else set to empty string
-            $vanafDatum = "";
-            if (-not([string]::IsNullOrEmpty($groepsIndelingNode.vanafDatum))) {
-                $vanafDatum = ([System.DateTimeOffset]$groepsIndelingNode.vanafDatum).ToString("yyyy-MM-dd")
-            }
-            # Check if datumUitschrijving has a value, if so convert to valid string format, else set to empty string
-            $totDatum = "";
-            if (-not([string]::IsNullOrEmpty($groepsIndelingNode.totDatum))) {
-                $totDatum = ([System.DateTimeOffset]$groepsIndelingNode.totDatum).ToString("yyyy-MM-dd")
-            }
             $contract = @{
                 ContractType     = "groep"
                 id               = $groepsIndelingNode.id
-                vanafDatum       = $vanafDatum
-                totDatum         = $totDatum
+                vanafDatum       = ([System.DateTimeOffset]$groepsIndelingNode.vanafDatum).ToString("yyyy-MM-dd")
+                totDatum         = ([System.DateTimeOffset]$groepsIndelingNode.totDatum).ToString("yyyy-MM-dd")
                 groep            = $groep
                 schooljaar       = $schooljaar
                 leerjaar         = $groepsIndelingNode.leerjaar
@@ -193,6 +203,7 @@ function ConvertTo-ReturnXmlToLeerlingenlist {
                 dienstverband    = @{} #dummy voor mapping
                 Brin             = $Brin
                 Voortgezet       = $opleidinggegevensNode.voortgezet
+                SchoolType       = $opleidinggegevensNode.opleiding.type
             }
             $contracts += $contract;
         }
@@ -211,26 +222,27 @@ function ConvertTo-ReturnXmlToLeerlingenlist {
                 }
             }
 
-            # Check if datumInschrijving has a value, if so convert to valid string format, else set to empty string
             $datumInschrijving = "";
             if (-not([string]::IsNullOrEmpty($inschrijvingNode.datumInschrijving))) {
                 $datumInschrijving = ([System.DateTimeOffset]$inschrijvingNode.datumInschrijving).ToString("yyyy-MM-dd")
             }
-            # Check if datumUitschrijving has a value, if so convert to valid string format, else set to empty string
+
             $datumUitschrijving = "";
             if (-not([string]::IsNullOrEmpty($inschrijvingNode.datumUitschrijving))) {
                 $datumUitschrijving = ([System.DateTimeOffset]$inschrijvingNode.datumUitschrijving).ToString("yyyy-MM-dd")
             }
+			
             $contract = @{
                 ContractType      = "inschrijving"
                 id                = $inschrijvingNode.id
-                datumInschrijving = $datumInschrijving
-                vanafDatum        = $datumInschrijving  #copy to ease the mapping
+                datumInschrijving = ([System.DateTimeOffset]$inschrijvingNode.datumInschrijving).ToString("yyyy-MM-dd")
+                vanafDatum        = ([System.DateTimeOffset]$inschrijvingNode.datumInschrijving).ToString("yyyy-MM-dd")  #copy to ease the mapping
                 totDatum          = $datumUitschrijving
                 inschrijvingType  = $inschrijvingType
                 groep             = @{} #dummy for mapping
                 dienstverband     = @{} #dummy for mapping
                 Brin              = $Brin
+                SchoolType        = $schooltype
             }
             $contracts += $contract
         }
@@ -263,6 +275,7 @@ function ConvertTo-ReturnXmlToLeerlingenlist {
             voornamen              = $leerlingNode.voornamen
             telefoonWerk           = @{} #dummy for mapping
             SchoolType             = $schooltype
+            Aangemeld              = $aangemeld
 
         }
         $null = $leerlingenObject.add($leerlingObject);
@@ -275,9 +288,8 @@ function ConvertTo-ReturnXmlToLeerlingenlist {
 $personList = [System.Collections.Generic.List[object]]::new()
 
 $brinNumbers = [array]$config.brinIdentifiers.split(',') | ForEach-Object { $_.trim(' ') }
-foreach ($Brin in $brinNumbers) {
-    Write-Verbose "ParnasSys import students processing brin [$Brin]" -Verbose
 
+foreach ($Brin in $brinNumbers) {
     # If no school year specified, getting the current Year.
     $schoolYear = $config.schoolYear
     if ([string]::IsNullOrEmpty($config.schoolYear)) {
@@ -288,7 +300,9 @@ foreach ($Brin in $brinNumbers) {
             $schoolYear = (Get-Date).ToString("yyyy") + " / " + (Get-Date).AddYears(1).ToString("yyyy")
         }
     }
-    Write-Verbose "ParnasSys import students getting data of shoolyear $SchoolYear" -Verbose
+
+    Write-Verbose "ParnasSys import students getting data for brin [$Brin] and year [$SchoolYear]"
+
     $splatParnasSys = @{
         Brin          = $Brin
         WebServiceUri = $config.webServiceUri
@@ -298,18 +312,74 @@ foreach ($Brin in $brinNumbers) {
     }
 
     if (-not [string]::IsNullOrEmpty($config.Proxy)) {
-        Write-Verbose "Added Proxy Address to webrequest $($config.Proxy)" -Verbose
+        Write-Verbose "Added Proxy Address to webrequest $($config.Proxy)"
         $splatParnasSys['Proxy'] = $config.Proxy
     }
 
-    $leerLingen , $leerLingenReturnNode = $null   # Needed for the second Brin
+    $leerLingen , $leerLingenReturnNode = @()   # Needed for the second Brin
     $leerLingenReturnNode = Get-ParnasSysLeerlingen @splatParnasSys
 
     $leerLingen = ConvertTo-ReturnXmlToLeerlingenlist -ReturnNode $leerLingenReturnNode
-    if ( $leerLingen.count -gt 0) {
+
+    $array = @()
+    $array = $array + $leerLingen
+    $leerLingen = $array
+
+        
+    if (($leerLingen | measure-object).count -gt 0) {
         $personList.AddRange($leerLingen)
     }
-    Write-Verbose "Students found [$($leerLingen.Count)] for Brin [$Brin]" -Verbose
+    Write-Verbose "Students found [$(($leerLingen | measure-object).Count)] for Brin [$Brin] and year [$schoolyear]" -verbose
+
+    # Get previous schoolyear
+    if ($config.includeLastYear) {
+        $schoolYearSplitted = $schoolYear -split '/'
+        $startYear = $schoolYearSplitted[0].Trim()
+        $endYear = $schoolYearSplitted[1].Trim()
+        $previousStart = $startYear - 1
+        $previousEnd = $endYear - 1
+        $schoolYearPrevious = "$previousStart / $previousEnd"
+
+        Write-Verbose "ParnasSys import students getting data for brin [$Brin] and year [$schoolYearPrevious]"
+
+        $splatParnasSys = @{
+            Brin          = $Brin
+            WebServiceUri = $config.webServiceUri
+            SupplierName  = $config.supplierName
+            SupplierKey   = $config.supplierKey
+            schoolYear    = $schoolYearPrevious
+        }
+
+        if (-not [string]::IsNullOrEmpty($config.Proxy)) {
+            Write-Verbose "Added Proxy Address to webrequest $($config.Proxy)"
+            $splatParnasSys['Proxy'] = $config.Proxy
+        }
+        $leerLingenPreviousYear , $leerLingenPreviousYearReturnNode = @()  # Needed for the second Brin
+        $leerLingenPreviousYearReturnNode = Get-ParnasSysleerLingen @splatParnasSys
+        $leerLingenPreviousYear = ConvertTo-ReturnXmlToleerLingenlist -ReturnNode $leerLingenPreviousYearReturnNode
+    
+        $array = @()
+        $array = $array + $leerLingenPreviousYear
+        $leerLingenPreviousYear = $array
+
+        if ( ($leerLingenPreviousYear | measure-object).count -gt 0) {
+            $leerLingenPreviousYear = $leerLingenPreviousYear | Where-Object { $_.id -notin $personList.id }
+        }
+        
+        if (($leerLingenPreviousYear | measure-object).count -eq 1 ) {
+            $personList.add($leerLingenPreviousYear)
+        }
+        elseif (($leerLingenPreviousYear | measure-object).count -gt 0) {
+            $personList.AddRange($leerLingenPreviousYear)
+        }
+        Write-Verbose "Students found [$(($leerLingenPreviousYear | measure-object).count)] for Brin [$Brin] and year [$schoolYearPrevious]" -Verbose
+    }
 }
-Write-Verbose "Total Students found [$($personList.Count)]" -Verbose
+Write-Verbose "Total Students found [$(($personList | measure-object).Count)]" -Verbose
 Write-Output $personList | ConvertTo-Json -Depth 10
+<#
+foreach ($person in $personList)
+{
+    Write-Output $person | ConvertTo-Json -Depth 10
+}
+#>
