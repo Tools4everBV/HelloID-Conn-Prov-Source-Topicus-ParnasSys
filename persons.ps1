@@ -170,7 +170,7 @@ function ConvertTo-ReturnxmlToMedewerkerslist {
         }
         $dummyIndex = $medewerkersObject.add($medewerkerObject)
     }
-    return $medewerkersObject
+    Write-Output -NoEnumerate $medewerkersObject
 }
 
 # start of main loop of script execution
@@ -199,15 +199,15 @@ foreach ($Brin in $brinNumbers) {
         Write-Verbose "Added Proxy Address to webrequest $($config.Proxy)" -Verbose
         $splatParnasSys['Proxy'] = $config.Proxy
     }
-    $medewerkers , $medewerkersReturnNode = $null  # Needed for the second Brin
+    $medewerkers , $medewerkersReturnNode = $null, $null  # Needed for the second Brin
 
     $medewerkersReturnNode = Get-ParnasSysMedewerkers @splatParnasSys
 
     $medewerkers = ConvertTo-ReturnxmlToMedewerkerslist -returnNode $medewerkersReturnNode
-    if ( $medewerkers.count -gt 0) {
+    if (($medewerkers | Measure-Object).Count -gt 0) {
         $dummyIndex = $personList.AddRange($medewerkers)
     }
-    Write-Verbose "Employees found [$($medewerkers.Count)] for Brin [$Brin]" -Verbose
+    Write-Verbose "Employees found [$(($medewerkers | Measure-Object).Count)] for Brin [$Brin]" -Verbose
 }
 
 Write-Verbose -Verbose "ParnasSys import employees succesfull"

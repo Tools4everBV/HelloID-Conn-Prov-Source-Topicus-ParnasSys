@@ -5,7 +5,7 @@ $InformationPreference = "Continue"
 $WarningPreference = "Continue"
 
 # Set debug logging
-switch ($($c.isDebug)) {
+switch ($($config.isDebug)) {
     $true { $VerbosePreference = 'Continue' }
     $false { $VerbosePreference = 'SilentlyContinue' }
 }
@@ -98,11 +98,19 @@ function ConvertTo-ReturnXmlToLeerlingenlist {
 
     $leerlingenObject = [System.Collections.ArrayList]::new()
 
-    $adressenNode = $returnNode.adressen
-    $groepenNode = $returnNode.groepen
-    $schooljarenNode = $returnNode.schooljaren
-    $leerlingenNode = $returnNode.leerlingen
-    $inschrijvingtypesNode = $returnNode.inschrijvingtypes
+    # Use .item() instead of property access: property access returns an empty [string]
+    # instead of an XmlElement when a node is empty (e.g. when there are 0 students)
+    $adressenNode = $returnNode.item('adressen')
+    $groepenNode = $returnNode.item('groepen')
+    $schooljarenNode = $returnNode.item('schooljaren')
+    $leerlingenNode = $returnNode.item('leerlingen')
+    $inschrijvingtypesNode = $returnNode.item('inschrijvingtypes')
+
+    if ($null -eq $leerlingenNode) {
+        Write-Output -NoEnumerate $leerlingenObject
+        return
+    }
+
     $nodePath = "leerling"
     $leerlingNodeList = $leerlingenNode.SelectNodes($nodePath)
 
@@ -190,11 +198,21 @@ function ConvertTo-ReturnXmlToLeerlingenlist {
                     naam = $schooljaarNode.naam
                 }
             }
+            $groepVanafDatum = ""
+            if (-not([string]::IsNullOrEmpty($groepsIndelingNode.vanafDatum))) {
+                $groepVanafDatum = ([System.DateTimeOffset]$groepsIndelingNode.vanafDatum).ToString("yyyy-MM-dd")
+            }
+
+            $groepTotDatum = ""
+            if (-not([string]::IsNullOrEmpty($groepsIndelingNode.totDatum))) {
+                $groepTotDatum = ([System.DateTimeOffset]$groepsIndelingNode.totDatum).ToString("yyyy-MM-dd")
+            }
+
             $contract = @{
                 ContractType     = "groep"
                 id               = $groepsIndelingNode.id
-                vanafDatum       = ([System.DateTimeOffset]$groepsIndelingNode.vanafDatum).ToString("yyyy-MM-dd")
-                totDatum         = ([System.DateTimeOffset]$groepsIndelingNode.totDatum).ToString("yyyy-MM-dd")
+                vanafDatum       = $groepVanafDatum
+                totDatum         = $groepTotDatum
                 groep            = $groep
                 schooljaar       = $schooljaar
                 leerjaar         = $groepsIndelingNode.leerjaar
@@ -235,8 +253,8 @@ function ConvertTo-ReturnXmlToLeerlingenlist {
             $contract = @{
                 ContractType      = "inschrijving"
                 id                = $inschrijvingNode.id
-                datumInschrijving = ([System.DateTimeOffset]$inschrijvingNode.datumInschrijving).ToString("yyyy-MM-dd")
-                vanafDatum        = ([System.DateTimeOffset]$inschrijvingNode.datumInschrijving).ToString("yyyy-MM-dd")  #copy to ease the mapping
+                datumInschrijving = $datumInschrijving
+                vanafDatum        = $datumInschrijving  #copy to ease the mapping
                 totDatum          = $datumUitschrijving
                 inschrijvingType  = $inschrijvingType
                 groep             = @{} #dummy for mapping
@@ -280,7 +298,7 @@ function ConvertTo-ReturnXmlToLeerlingenlist {
         }
         $null = $leerlingenObject.add($leerlingObject);
     }
-    Write-Output $leerlingenObject
+    Write-Output -NoEnumerate $leerlingenObject
 }
 #endregion functions
 
